@@ -1,9 +1,9 @@
 local m = {
   -- Required metadata fields
-  name = "MS2000/MicroKorg Manager",
+  name = "ms2kmk_manager",
   version = "4.0.0",
-  author = "your_name",
-  url = "https://github.com/your_username/ms2000_manager",
+  author = "LudfisterSound",
+  url = "https://github.com/LudfisterSound/ms2kmk_manager",
   
   -- Optional metadata fields
   description = [[
