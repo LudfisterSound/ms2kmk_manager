@@ -2,8 +2,9 @@
 -- v4.0.0 @LudfisterSound
 -- llllllll.co/t/ms2kmk-manager
 --
--- Advanced MS2000/MicroKorg Manager
--- with Complex Mood System
+-- Advanced MS2000/MicroKorg
+-- Manager with Complex
+-- Mood System
 --
 -- E1: navigate menus
 -- E2: change values
