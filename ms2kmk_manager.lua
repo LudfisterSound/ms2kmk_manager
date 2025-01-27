@@ -257,7 +257,7 @@ local MOOD_EVOLUTION = {
 function init()
   -- Initialize MIDI devices
   midi_device = midi.connect(1)
-  if not midi-device then
+  if not midi_device then
     print("Failed to connect to MIDI device")
     return
     
