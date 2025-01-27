@@ -17,12 +17,12 @@ A Monome Norns script for managing, generating, and controlling Korg MS2000 and 
 
 From Maiden:
 ```
-;install https://github.com/your_username/ms2000_manager
+;install https://github.com/LudfisterSound/ms2kmk_manager
 ```
 
 Manual installation:
 1. Clone this repository
-2. Copy contents to `~/dust/code/ms2000_manager/`
+2. Copy contents to `~/dust/code/ms2kmk_manager/`
 3. Restart Norns
 
 ## Hardware Setup
@@ -131,7 +131,7 @@ Generate patterns with:
 
 ## Saving & Loading
 
-- Programs are saved in `~/dust/data/ms2000_manager/`
+- Programs are saved in `~/dust/data/ms2kmk_manager/`
 - Bank information is preserved between sessions
 - Pattern data is saved with patches
 - Mood settings can be saved as presets
@@ -153,11 +153,9 @@ Generate patterns with:
 - Reset pattern position
 - Verify tempo settings
 
-[Previous content remains the same until after the Installation section, where we add:]
-
 ## Quick Start Guide
 
-### 1. First Time Setup (5 minutes)
+### 1. First Time Setup
 ```
 1. Connect MIDI
    - Connect MIDI OUT from Norns to MIDI IN on your synth
@@ -173,7 +171,7 @@ Generate patterns with:
    - Set MIDI channel (default: 1)
 ```
 
-### 2. Generate Your First Patch (2 minutes)
+### 2. Generate Your First Patch
 ```
 1. From the main screen:
    - Press K1 to access menu
@@ -189,7 +187,7 @@ Generate patterns with:
    - Press K3 to send to synth
 ```
 
-### 3. Real-time Control (2 minutes)
+### 3. Real-time Control
 ```
 1. Access MIDI control:
    - Press K1 twice to return to main page
@@ -201,7 +199,7 @@ Generate patterns with:
    - Changes are sent in real-time
 ```
 
-### 4. Save Your Work (1 minute)
+### 4. Save Your Work
 ```
 1. Store current patch:
    - From any page, hold K2
