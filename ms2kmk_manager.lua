@@ -270,9 +270,11 @@ function init()
   
   -- Initialize parameters
   init_extended_params()
+  end)
   
   -- Initialize mood system
   init_mood_system()
+  end)
   
   -- Start the main clock
   clock.run(function()
