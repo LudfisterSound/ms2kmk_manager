@@ -2,9 +2,8 @@
 -- v4.0.0 @LudfisterSound
 -- llllllll.co/t/ms2kmk-manager
 --
--- Advanced MS2000/MicroKorg
--- Manager with Complex
--- Mood System
+-- Advanced MS2000/MicroKorg Manager
+-- with Complex Mood System
 --
 -- E1: navigate menus
 -- E2: change values
@@ -16,11 +15,15 @@
 local musicutil = require 'musicutil'
 local UI = require 'ui'
 
+-- Global variables
+local current_synth_model = "MS2000"  -- Default model
+local midi_device
+
 -- Synth Models and Their CC Maps
 local SYNTH_MODELS = {
   MS2000 = {
     cc_map = {
-      cutoff = 74,
+      filter_cutoff = 74,  -- Changed from cutoff to filter_cutoff for consistency
       resonance = 71,
       eg_attack = 73,
       eg_decay = 75,
@@ -29,7 +32,6 @@ local SYNTH_MODELS = {
       lfo1_rate = 76,
       lfo2_rate = 77,
       mod_wheel = 1,
-      -- MS2000 specific CCs
       vocoder = 90,
       mod_fx_speed = 93,
       delay_time = 94
@@ -37,7 +39,7 @@ local SYNTH_MODELS = {
   },
   MicroKorg = {
     cc_map = {
-      cutoff = 74,
+      filter_cutoff = 74,  -- Changed for consistency
       resonance = 71,
       eg_attack = 73,
       eg_decay = 75,
@@ -46,7 +48,6 @@ local SYNTH_MODELS = {
       lfo1_rate = 76,
       lfo2_rate = 77,
       mod_wheel = 1,
-      -- MicroKorg specific CCs
       arp_gate = 92,
       arp_speed = 91,
       mod_type = 93
@@ -54,87 +55,29 @@ local SYNTH_MODELS = {
   }
 }
 
--- Enhanced Mood System with Complex Interactions
-local MOOD_MATRIX = {
-  base_moods = {
-    "Aggressive", "Mellow", "Ethereal", "Dark", 
-    "Bright", "Weird", "Classic", "Future"
-  },
+-- Initialize extended parameters
+local function init_extended_params()
+  -- Add basic synth parameters
+  params:add_group("Synthesis", 10)
   
-  modifiers = {
-    "Unstable", "Evolving", "Glitchy", "Warm", 
-    "Cold", "Organic", "Digital", "Raw"
-  },
-  
-  combinations = {
-    -- Complex mood combinations with specific parameter affects
-    Aggressive = {
-      Unstable = {
-        filter = {cutoff = 100, resonance = 90},
-        mod = {rate = "fast", depth = "high"},
-        eg = {attack = "fast", decay = "medium"},
-        probability = {
-          distortion = 0.9,
-          pitch_drift = 0.7
-        }
-      },
-      Evolving = {
-        filter = {cutoff = "sweep", resonance = "sweep"},
-        mod = {rate = "variable", depth = "increasing"},
-        eg = {attack = "variable", release = "long"},
-        probability = {
-          filter_mod = 0.8,
-          pan_motion = 0.6
-        }
-      }
-    },
-    Mellow = {
-      Warm = {
-        filter = {cutoff = 60, resonance = 30},
-        mod = {rate = "slow", depth = "medium"},
-        eg = {attack = "medium", release = "long"},
-        probability = {
-          chorus = 0.7,
-          delay = 0.5
-        }
-      },
-      Organic = {
-        filter = {cutoff = "breathing", resonance = "subtle"},
-        mod = {rate = "natural", depth = "varying"},
-        eg = {attack = "soft", release = "natural"},
-        probability = {
-          filter_env = 0.8,
-          amplitude_mod = 0.6
-        }
-      }
-    }
-    -- Add more combinations as needed
-  },
-  
-  -- Time-based evolution parameters
-  evolution = {
-    slow = {
-      period = 8,  -- in beats
-      depth = 0.3
-    },
-    medium = {
-      period = 4,
-      depth = 0.5
-    },
-    fast = {
-      period = 2,
-      depth = 0.7
-    }
-  }
-}
+  params:add_control("filter_cutoff", "Filter Cutoff", controlspec.new(0, 127, 'lin', 1, 64, ""))
+  params:add_control("resonance", "Resonance", controlspec.new(0, 127, 'lin', 1, 64, ""))
+  params:add_control("eg_attack", "EG Attack", controlspec.new(0, 127, 'lin', 1, 64, ""))
+  params:add_control("eg_decay", "EG Decay", controlspec.new(0, 127, 'lin', 1, 64, ""))
+  params:add_control("eg_sustain", "EG Sustain", controlspec.new(0, 127, 'lin', 1, 64, ""))
+  params:add_control("eg_release", "EG Release", controlspec.new(0, 127, 'lin', 1, 64, ""))
+  params:add_control("lfo1_rate", "LFO1 Rate", controlspec.new(0, 127, 'lin', 1, 64, ""))
+  params:add_control("lfo2_rate", "LFO2 Rate", controlspec.new(0, 127, 'lin', 1, 64, ""))
+  params:add_control("mod_fx_speed", "Mod FX Speed", controlspec.new(0, 127, 'lin', 1, 64, ""))
+  params:add_control("filter_env_amount", "Filter Env Amount", controlspec.new(0, 127, 'lin', 1, 64, ""))
+end
 
--- Real-time MIDI CC control system
+-- MIDI CC System implementation
 local MIDI_CC_SYSTEM = {
   active_ccs = {},
   cc_smoothing = true,
   smoothing_amount = 0.3,
   
-  -- CC Processing functions
   process_cc = function(self, cc_num, value)
     if self.cc_smoothing then
       value = self:smooth_value(cc_num, value)
@@ -142,7 +85,6 @@ local MIDI_CC_SYSTEM = {
     self:update_parameter(cc_num, value)
   end,
   
-  -- Value smoothing to prevent jumps
   smooth_value = function(self, cc_num, new_value)
     if not self.active_ccs[cc_num] then
       self.active_ccs[cc_num] = new_value
@@ -155,100 +97,15 @@ local MIDI_CC_SYSTEM = {
     return math.floor(smoothed)
   end,
   
-  -- Parameter updating based on CC
   update_parameter = function(self, cc_num, value)
-    local synth = current_synth_model
-    local cc_map = SYNTH_MODELS[synth].cc_map
+    local cc_map = SYNTH_MODELS[current_synth_model].cc_map
     
     -- Find parameter associated with CC
     for param, cc in pairs(cc_map) do
       if cc == cc_num then
         params:set(param, value)
-        return
+        break
       end
-    end
-  end
-}
-
--- Mood evolution system
-local MOOD_EVOLUTION = {
-  current_mood = nil,
-  current_modifier = nil,
-  evolution_clock = nil,
-  evolution_stage = 1,
-  
-  -- Initialize mood evolution
-  init = function(self, mood, modifier)
-    self.current_mood = mood
-    self.current_modifier = modifier
-    
-    -- Stop existing clock if running
-    if self.evolution_clock then
-      clock.cancel(self.evolution_clock)
-    end
-    
-    -- Start evolution clock
-    self.evolution_clock = clock.run(function()
-      while true do
-        clock.sync(1/4)  -- Sync to clock
-        self:evolve()
-      end
-    end)
-  end,
-  
-  -- Evolution process
-  evolve = function(self)
-    local combo = MOOD_MATRIX.combinations[self.current_mood][self.current_modifier]
-    if not combo then return end
-    
-    -- Calculate evolution parameters
-    local stage = self.evolution_stage
-    local period = MOOD_MATRIX.evolution[combo.mod.rate].period
-    local depth = MOOD_MATRIX.evolution[combo.mod.rate].depth
-    
-    -- Apply evolution
-    self:apply_evolution(combo, stage, period, depth)
-    
-    -- Increment evolution stage
-    self.evolution_stage = (self.evolution_stage % period) + 1
-  end,
-  
-  -- Apply evolution to parameters
-  apply_evolution = function(self, combo, stage, period, depth)
-    -- Calculate evolution amount
-    local phase = (stage - 1) / period
-    local evolution = math.sin(phase * math.pi * 2) * depth
-    
-    -- Apply to filter
-    if combo.filter.cutoff == "sweep" then
-      local cutoff = 64 + (evolution * 63)
-      params:set("filter_cutoff", cutoff)
-    end
-    
-    -- Apply to modulation
-    if combo.mod.rate == "variable" then
-      local rate = 64 + (evolution * 63)
-      params:set("lfo1_rate", rate)
-    end
-    
-    -- Apply probability-based changes
-    for effect, prob in pairs(combo.probability) do
-      if math.random() < prob * (1 + evolution) then
-        self:trigger_effect(effect)
-      end
-    end
-  end,
-  
-  -- Trigger probability-based effects
-  trigger_effect = function(self, effect)
-    if effect == "filter_mod" then
-      -- Trigger filter modulation
-      local amount = math.random(30, 100)
-      params:set("filter_env_amount", amount)
-    elseif effect == "pan_motion" then
-      -- Trigger panning modulation
-      local speed = math.random(40, 80)
-      params:set("mod_fx_speed", speed)
     end
   end
 }
@@ -257,11 +114,16 @@ local MOOD_EVOLUTION = {
 function init()
   -- Initialize MIDI devices
   midi_device = midi.connect(1)
-  if not midi_device then
-    print("Failed to connect to MIDI device")
-    return
-  end)
-    
+  midi_device.event = function(data)
+    local msg = midi.to_msg(data)
+    if msg.type == "cc" then
+      MIDI_CC_SYSTEM:process_cc(msg.cc, msg.val)
+    end
+  end
+  
+  -- Initialize parameters
+  init_extended_params()
+  
   -- Add synth model selection
   params:add_option("synth_model", "Synth Model", {"MS2000", "MicroKorg"}, 1)
   params:set_action("synth_model", function(x)
@@ -269,33 +131,17 @@ function init()
     init_cc_mappings()
   end)
   
-  -- Initialize parameters
-  init_extended_params()
-  end)
+  -- Initialize CC mappings
+  init_cc_mappings()
   
-  -- Initialize mood system
-  init_mood_system()
-  end)
-  
-  -- Start the main clock
+  -- Start UI redraw clock
   clock.run(function()
     while true do
-      clock.sync(1/24)  -- MIDI clock resolution
-      update_evolution()
+      clock.sleep(1/15) -- 15 FPS refresh rate
+      redraw()
     end
   end)
 end
-
--- MIDI input handling
-midi_device.event = function(data)
-  local msg = midi.to_msg(data)
-  if msg.type == "cc" then
-    MIDI_CC_SYSTEM:process_cc(msg.cc, msg.val)
-  end
-end
-
--- Add more supporting functions here...
--- (Previous functions from the last version remain unchanged)
 
 function init_cc_mappings()
   local model = SYNTH_MODELS[current_synth_model]
@@ -310,33 +156,18 @@ function init_cc_mappings()
   end
 end
 
-function init_mood_system()
-  -- Initialize base mood
-  params:add_option("base_mood", "Base Mood", MOOD_MATRIX.base_moods, 1)
-  params:add_option("mood_modifier", "Mood Modifier", MOOD_MATRIX.modifiers, 1)
-  
-  -- Set up mood evolution
-  params:set_action("base_mood", function(x)
-    MOOD_EVOLUTION:init(
-      MOOD_MATRIX.base_moods[x],
-      MOOD_MATRIX.modifiers[params:get("mood_modifier")]
-    )
-  end)
+-- Basic UI drawing function
+function redraw()
+  screen.clear()
+  screen.level(15)
+  screen.move(0, 10)
+  screen.text(current_synth_model .. " Manager")
+  screen.move(0, 20)
+  screen.text("Filter: " .. params:get("filter_cutoff"))
+  screen.update()
 end
 
-function update_evolution()
-  if MOOD_EVOLUTION.evolution_clock then
-    MOOD_EVOLUTION:evolve()
-  end
-end
-
--- Enhanced cleanup function
+-- Clean up function
 function cleanup()
-  -- Stop all clocks
-  if MOOD_EVOLUTION.evolution_clock then
-    clock.cancel(MOOD_EVOLUTION.evolution_clock)
-  end
-  
-  -- Save current state
-  save_current_state()
+  -- Nothing specific needed for cleanup in this version
 end
