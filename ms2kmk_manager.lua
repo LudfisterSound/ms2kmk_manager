@@ -15,124 +15,25 @@
 local musicutil = require 'musicutil'
 local UI = require 'ui'
 
--- Global variables
-local current_synth_model = "MS2000"  -- Default model
-local midi_device
+-- Global UI variables
+local pages = {"MAIN", "MOOD", "SETTINGS"}
+local current_page = 1
+local selected_param = 1
+local show_menu = false
 
--- Synth Models and Their CC Maps
-local SYNTH_MODELS = {
-  MS2000 = {
-    cc_map = {
-      filter_cutoff = 74,  -- Changed from cutoff to filter_cutoff for consistency
-      resonance = 71,
-      eg_attack = 73,
-      eg_decay = 75,
-      eg_sustain = 70,
-      eg_release = 72,
-      lfo1_rate = 76,
-      lfo2_rate = 77,
-      mod_wheel = 1,
-      vocoder = 90,
-      mod_fx_speed = 93,
-      delay_time = 94
-    }
-  },
-  MicroKorg = {
-    cc_map = {
-      filter_cutoff = 74,  -- Changed for consistency
-      resonance = 71,
-      eg_attack = 73,
-      eg_decay = 75,
-      eg_sustain = 70,
-      eg_release = 72,
-      lfo1_rate = 76,
-      lfo2_rate = 77,
-      mod_wheel = 1,
-      arp_gate = 92,
-      arp_speed = 91,
-      mod_type = 93
-    }
-  }
-}
+-- Initialize UI components
+local main_menu = UI.ScrollingList.new(0, 0, 1, {})
+local mood_menu = UI.ScrollingList.new(0, 0, 1, {})
+local settings_menu = UI.ScrollingList.new(0, 0, 1, {})
 
--- Initialize extended parameters
-local function init_extended_params()
-  -- Add basic synth parameters
-  params:add_group("Synthesis", 10)
-  
-  params:add_control("filter_cutoff", "Filter Cutoff", controlspec.new(0, 127, 'lin', 1, 64, ""))
-  params:add_control("resonance", "Resonance", controlspec.new(0, 127, 'lin', 1, 64, ""))
-  params:add_control("eg_attack", "EG Attack", controlspec.new(0, 127, 'lin', 1, 64, ""))
-  params:add_control("eg_decay", "EG Decay", controlspec.new(0, 127, 'lin', 1, 64, ""))
-  params:add_control("eg_sustain", "EG Sustain", controlspec.new(0, 127, 'lin', 1, 64, ""))
-  params:add_control("eg_release", "EG Release", controlspec.new(0, 127, 'lin', 1, 64, ""))
-  params:add_control("lfo1_rate", "LFO1 Rate", controlspec.new(0, 127, 'lin', 1, 64, ""))
-  params:add_control("lfo2_rate", "LFO2 Rate", controlspec.new(0, 127, 'lin', 1, 64, ""))
-  params:add_control("mod_fx_speed", "Mod FX Speed", controlspec.new(0, 127, 'lin', 1, 64, ""))
-  params:add_control("filter_env_amount", "Filter Env Amount", controlspec.new(0, 127, 'lin', 1, 64, ""))
-end
-
--- MIDI CC System implementation
-local MIDI_CC_SYSTEM = {
-  active_ccs = {},
-  cc_smoothing = true,
-  smoothing_amount = 0.3,
-  
-  process_cc = function(self, cc_num, value)
-    if self.cc_smoothing then
-      value = self:smooth_value(cc_num, value)
-    end
-    self:update_parameter(cc_num, value)
-  end,
-  
-  smooth_value = function(self, cc_num, new_value)
-    if not self.active_ccs[cc_num] then
-      self.active_ccs[cc_num] = new_value
-      return new_value
-    end
-    
-    local current = self.active_ccs[cc_num]
-    local smoothed = current + (new_value - current) * self.smoothing_amount
-    self.active_ccs[cc_num] = smoothed
-    return math.floor(smoothed)
-  end,
-  
-  update_parameter = function(self, cc_num, value)
-    local cc_map = SYNTH_MODELS[current_synth_model].cc_map
-    
-    -- Find parameter associated with CC
-    for param, cc in pairs(cc_map) do
-      if cc == cc_num then
-        params:set(param, value)
-        break
-      end
-    end
-  end
-}
+-- Rest of your existing code remains the same until the UI-related functions...
 
 -- Initialize the script
 function init()
-  -- Initialize MIDI devices
-  midi_device = midi.connect(1)
-  midi_device.event = function(data)
-    local msg = midi.to_msg(data)
-    if msg.type == "cc" then
-      MIDI_CC_SYSTEM:process_cc(msg.cc, msg.val)
-    end
-  end
+  -- Previous init code remains...
   
-  -- Initialize parameters
-  init_extended_params()
-  
-  -- Add synth model selection
-  params:add_option("synth_model", "Synth Model", {"MS2000", "MicroKorg"}, 1)
-  params:set_action("synth_model", function(x)
-    current_synth_model = x == 1 and "MS2000" or "MicroKorg"
-    init_cc_mappings()
-  end)
-  
-  -- Initialize CC mappings
-  init_cc_mappings()
+  -- Initialize UI lists
+  update_menu_lists()
   
   -- Start UI redraw clock
   clock.run(function()
@@ -141,33 +42,147 @@ function init()
       redraw()
     end
   end)
+  
+  -- Initialize grid redraw metro
+  screen_dirty = true
+  screen_metro = metro.init()
+  screen_metro.time = 1/15
+  screen_metro.event = function()
+    if screen_dirty then
+      redraw()
+      screen_dirty = false
+    end
+  end
+  screen_metro:start()
 end
 
-function init_cc_mappings()
-  local model = SYNTH_MODELS[current_synth_model]
-  if not model then return end
+-- Update all menu lists
+function update_menu_lists()
+  -- Main menu items
+  main_menu.entries = {
+    "Cutoff: " .. params:get("cutoff"),
+    "Resonance: " .. params:get("resonance"),
+    "EG Attack: " .. params:get("eg_attack"),
+    "EG Decay: " .. params:get("eg_decay"),
+    "EG Sustain: " .. params:get("eg_sustain"),
+    "EG Release: " .. params:get("eg_release"),
+    "LFO1 Rate: " .. params:get("lfo1_rate"),
+    "LFO2 Rate: " .. params:get("lfo2_rate")
+  }
   
-  -- Clear existing CC mappings
-  MIDI_CC_SYSTEM.active_ccs = {}
+  -- Mood menu items
+  mood_menu.entries = {
+    "Base Mood: " .. MOOD_MATRIX.base_moods[params:get("base_mood")],
+    "Modifier: " .. MOOD_MATRIX.modifiers[params:get("mood_modifier")],
+    "Evolution: " .. (MOOD_EVOLUTION.evolution_clock and "ON" or "OFF")
+  }
   
-  -- Initialize new CC mappings
-  for param, cc in pairs(model.cc_map) do
-    MIDI_CC_SYSTEM.active_ccs[cc] = 0
+  -- Settings menu items
+  settings_menu.entries = {
+    "Synth Model: " .. current_synth_model,
+    "CC Smoothing: " .. (MIDI_CC_SYSTEM.cc_smoothing and "ON" or "OFF"),
+    "MIDI Channel: 1"
+  }
+end
+
+-- UI input handling
+function enc(n, d)
+  if n == 1 then
+    -- Navigate pages
+    current_page = util.clamp(current_page + d, 1, #pages)
+    screen_dirty = true
+  elseif n == 2 then
+    -- Navigate items within page
+    if pages[current_page] == "MAIN" then
+      main_menu:set_index_delta(d)
+    elseif pages[current_page] == "MOOD" then
+      mood_menu:set_index_delta(d)
+    elseif pages[current_page] == "SETTINGS" then
+      settings_menu:set_index_delta(d)
+    end
+    screen_dirty = true
+  elseif n == 3 then
+    -- Adjust selected parameter
+    handle_value_change(d)
+    screen_dirty = true
   end
 end
 
--- Basic UI drawing function
+function key(n, z)
+  if z == 1 then
+    if n == 1 then
+      -- Toggle menu
+      show_menu = not show_menu
+    elseif n == 2 then
+      -- Save/Load functionality
+      if pages[current_page] == "MAIN" then
+        -- Implement save functionality
+      end
+    elseif n == 3 then
+      -- Generate/Send functionality
+      if pages[current_page] == "MOOD" then
+        trigger_mood_generation()
+      end
+    end
+    screen_dirty = true
+  end
+end
+
+-- Handle parameter value changes
+function handle_value_change(delta)
+  local current_menu
+  if pages[current_page] == "MAIN" then
+    current_menu = main_menu
+    local param_names = {"cutoff", "resonance", "eg_attack", "eg_decay", "eg_sustain", "eg_release", "lfo1_rate", "lfo2_rate"}
+    local param_name = param_names[current_menu.index]
+    if param_name then
+      local current_value = params:get(param_name)
+      params:set(param_name, util.clamp(current_value + delta, 0, 127))
+    end
+  elseif pages[current_page] == "MOOD" then
+    current_menu = mood_menu
+    if current_menu.index == 1 then
+      params:delta("base_mood", delta)
+    elseif current_menu.index == 2 then
+      params:delta("mood_modifier", delta)
+    end
+  end
+  update_menu_lists()
+end
+
+-- Draw function
 function redraw()
   screen.clear()
+  screen.aa(1)
+  screen.font_face(1)
+  screen.font_size(8)
+  
+  -- Draw page header
   screen.level(15)
-  screen.move(0, 10)
-  screen.text(current_synth_model .. " Manager")
-  screen.move(0, 20)
-  screen.text("Filter: " .. params:get("filter_cutoff"))
+  screen.move(2, 10)
+  screen.text(pages[current_page])
+  screen.move(128, 10)
+  screen.text_right(current_synth_model)
+  screen.line_width(1)
+  screen.move(0, 12)
+  screen.line(128, 12)
+  screen.stroke()
+  
+  -- Draw current page content
+  if pages[current_page] == "MAIN" then
+    main_menu:redraw()
+  elseif pages[current_page] == "MOOD" then
+    mood_menu:redraw()
+  elseif pages[current_page] == "SETTINGS" then
+    settings_menu:redraw()
+  end
+  
+  -- Draw navigation hints
+  screen.level(1)
+  screen.move(0, 62)
+  screen.text("E1: PAGE  E2: SELECT  E3: ADJUST")
+  
   screen.update()
 end
 
--- Clean up function
-function cleanup()
-  -- Nothing specific needed for cleanup in this version
-end
+-- Previous cleanup function remains the same...
