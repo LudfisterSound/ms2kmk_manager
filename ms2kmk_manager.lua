@@ -257,7 +257,10 @@ local MOOD_EVOLUTION = {
 function init()
   -- Initialize MIDI devices
   midi_device = midi.connect(1)
-  
+  if not midi-device then
+    print("Failed to connect to MIDI device")
+    return
+    
   -- Add synth model selection
   params:add_option("synth_model", "Synth Model", {"MS2000", "MicroKorg"}, 1)
   params:set_action("synth_model", function(x)
