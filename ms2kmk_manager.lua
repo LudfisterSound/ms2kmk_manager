@@ -260,6 +260,7 @@ function init()
   if not midi_device then
     print("Failed to connect to MIDI device")
     return
+  end)
     
   -- Add synth model selection
   params:add_option("synth_model", "Synth Model", {"MS2000", "MicroKorg"}, 1)
